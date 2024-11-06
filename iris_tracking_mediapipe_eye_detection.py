@@ -103,7 +103,7 @@ with mp_face_mesh.FaceMesh(
                     
                     #toggle wheel_state when eyes closed for more than 2 seconds
                     print(blink_time - open_eyes_time)
-                    while blink_time - open_eyes_time >= 2 and flag == False:
+                    while blink_time - open_eyes_time > 1 and flag == False:
                         flag = True
                         wheel_state = not wheel_state
                         break

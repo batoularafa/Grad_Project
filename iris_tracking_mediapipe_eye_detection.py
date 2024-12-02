@@ -3,6 +3,7 @@ import numpy as np
 import mediapipe as mp 
 import math
 import time
+import serial
 
 # Left eyes indices 
 RIGHT_IRIS = [474,475,476,477]
@@ -20,7 +21,7 @@ LEFT_EYE_BOTTOM = 374
 RIGHT_EYE_TOP = 159
 RIGHT_EYE_BOTTOM = 145
 
-
+ser = serial.Serial('COM8', 9600)
 def euclidean_distance(p1,p2):
     x1, y1 = p1.ravel()
     x2, y2 = p2.ravel()
@@ -101,7 +102,7 @@ with mp_face_mesh.FaceMesh(
                     iris_positions_blink= [pos for pos in iris_positions if blink_time - pos[1] <= 1]
                     iris_ratios_blink= [pos for pos in iris_ratios if blink_time - pos[1] <= 1]
                     
-                    #toggle wheel_state when eyes closed for more than 2 seconds
+                    #toggle wheel_state when eyes closed for more than 1 seconds
                     print(blink_time - open_eyes_time)
                     while blink_time - open_eyes_time > 1 and flag == False:
                         flag = True
@@ -115,6 +116,7 @@ with mp_face_mesh.FaceMesh(
                         last_iris_position, _ = iris_positions_blink[-1]  # Get the last position from within 1 second
                         last_iris_ratio, _ = iris_ratios_blink[-1] 
                         cv.putText(frame, f'iris pos: {last_iris_position}, {last_iris_ratio:.2f}', (30, 30),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
+                        ser.write(last_iris_ratio)
                         
             else:      
                 open_eyes_time = time.time()
@@ -130,6 +132,7 @@ with mp_face_mesh.FaceMesh(
                 iris_position_right, ratio_right = eyes_pos(center_right, mesh_points[R_H_RIGHT], mesh_points[R_H_LEFT][0])
                 iris_position_left, ratio_left = eyes_pos(center_left, mesh_points[L_H_RIGHT], mesh_points[L_H_LEFT][0])
                 avg_ratio = (ratio_right+ratio_left)/2
+                # ser.write(avg_ratio)
                 if avg_ratio <= 0.45:
                     iris_pos = "right"
                 elif avg_ratio > 0.45 and avg_ratio < 0.55:
@@ -138,15 +141,16 @@ with mp_face_mesh.FaceMesh(
                     iris_pos = "left"
 
 
-                # print(iris_pos, avg_ratio)
-
                 # Store the current iris position and average ratio with the current timestamp
                 iris_positions.append((iris_pos, time.time()))
                 iris_ratios.append((avg_ratio, time.time()))
                 if wheel_state == True: 
-                        cv.putText(frame, "moving", (30, 60),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
-                        cv.putText(frame,f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30,30), cv.FONT_HERSHEY_PLAIN, 1.2, (0,255,0), 1, cv.LINE_AA)
+                    # ser.write("M")
+                    print(iris_pos, avg_ratio)
+                    cv.putText(frame, "moving", (30, 60),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
+                    cv.putText(frame,f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30,30), cv.FONT_HERSHEY_PLAIN, 1.2, (0,255,0), 1, cv.LINE_AA)
                 else:
+                    ser.write("S")
                     cv.putText(frame, "stopping", (30, 60),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
                     cv.putText(frame,f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30,30), cv.FONT_HERSHEY_PLAIN, 1.2, (0,255,0), 1, cv.LINE_AA)
                 # cv.putText(frame,f'iris pos: {iris_position_left}, {ratio_right:.2f}', (30,50), cv.FONT_HERSHEY_PLAIN, 1.2, (0,255,0), 1, cv.LINE_AA)

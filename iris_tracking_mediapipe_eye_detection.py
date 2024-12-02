@@ -146,6 +146,7 @@ with mp_face_mesh.FaceMesh(
                 iris_ratios.append((avg_ratio, time.time()))
                 if wheel_state == True: 
                     # ser.write("M")
+                    ser.write(avg_ratio)
                     print(iris_pos, avg_ratio)
                     cv.putText(frame, "moving", (30, 60),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
                     cv.putText(frame,f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30,30), cv.FONT_HERSHEY_PLAIN, 1.2, (0,255,0), 1, cv.LINE_AA)

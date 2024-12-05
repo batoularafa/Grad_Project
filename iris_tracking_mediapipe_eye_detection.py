@@ -5,23 +5,24 @@ import math
 import time
 import serial
 
-# Left eyes indices 
+# right eyes indices 
 RIGHT_IRIS = [474,475,476,477]
 R_H_LEFT = [362]
 R_H_RIGHT = [263]
-
-# right eyes indices
-LEFT_IRIS = [469,470,471,472]
-L_H_LEFT = [33] #left eye left most landmark
-L_H_RIGHT =[133]
-
 # Eye blink detection landmarks
-LEFT_EYE_TOP = 386
-LEFT_EYE_BOTTOM = 374
 RIGHT_EYE_TOP = 159
 RIGHT_EYE_BOTTOM = 145
 
-ser = serial.Serial('COM8', 9600)
+# left eyes indices
+LEFT_IRIS = [469,470,471,472]
+L_H_LEFT = [33] #left eye left most landmark
+L_H_RIGHT =[133]
+# Eye blink detection landmarks
+LEFT_EYE_TOP = 386
+LEFT_EYE_BOTTOM = 374
+
+
+ser = serial.Serial('COM8', 9600, timeout=1)
 def euclidean_distance(p1,p2):
     x1, y1 = p1.ravel()
     x2, y2 = p2.ravel()
@@ -72,8 +73,6 @@ blink_detected = False  # Flag for blink detection
 iris_positions = []  # List to store iris positions with timestamps
 iris_ratios = []
 
-start_time = time.time()  # Initialize the start time
-
 with mp_face_mesh.FaceMesh(
     max_num_faces=1, 
     refine_landmarks=True, 
@@ -94,45 +93,43 @@ with mp_face_mesh.FaceMesh(
             blink_detected = detect_blink(results.multi_face_landmarks[0], frame)
 
             if blink_detected:
-                
                 # If a blink is detected, display the iris position from 1 second ago
                 if len(iris_positions) > 0:
                     # Filter out positions older than 1 second
                     blink_time = time.time()
                     iris_positions_blink= [pos for pos in iris_positions if blink_time - pos[1] <= 1]
                     iris_ratios_blink= [pos for pos in iris_ratios if blink_time - pos[1] <= 1]
-                    
+
                     #toggle wheel_state when eyes closed for more than 1 seconds
-                    print(blink_time - open_eyes_time)
                     while blink_time - open_eyes_time > 1 and flag == False:
                         flag = True
                         wheel_state = not wheel_state
                         break
                     if flag == True:
-                        print(wheel_state)
                         cv.putText(frame, "toggle done", (30, 30),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
 
                     if iris_positions_blink:
                         last_iris_position, _ = iris_positions_blink[-1]  # Get the last position from within 1 second
                         last_iris_ratio, _ = iris_ratios_blink[-1] 
                         cv.putText(frame, f'iris pos: {last_iris_position}, {last_iris_ratio:.2f}', (30, 30),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
-                        ser.write(last_iris_ratio)
-                        
-            else:      
+                        ser.write(f"{last_iris_ratio}\n".encode())
+                        time.sleep(0.1)
+                        if ser.in_waiting > 0:  # Check if there is data available to read
+                            data = ser.readline().decode('utf-8').strip()  # Decode and strip newline
+                            print(f"Received: {data}")  
+                        # time.sleep(0.1)
+                                            
+            else:    
                 open_eyes_time = time.time()
                 flag = False
                 (l_cx, l_cy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_IRIS])
                 (r_cx, r_cy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_IRIS])
                 center_left = np.array([l_cx, l_cy], dtype = np.int32)
                 center_right = np.array([r_cx, r_cy], dtype = np.int32)
-                cv.circle(frame, center_left, int(l_radius), (255,0,255), 1 , cv.LINE_AA)
-                cv.circle(frame, center_right, int(r_radius), (255,0,255), 1 , cv.LINE_AA)
-                # cv.circle(frame, mesh_points[R_H_RIGHT][0], 3, (255,255,255), -1 , cv.LINE_AA)
-                # cv.circle(frame, mesh_points[R_H_LEFT][0], 3, (0,255,255), -1 , cv.LINE_AA)
                 iris_position_right, ratio_right = eyes_pos(center_right, mesh_points[R_H_RIGHT], mesh_points[R_H_LEFT][0])
                 iris_position_left, ratio_left = eyes_pos(center_left, mesh_points[L_H_RIGHT], mesh_points[L_H_LEFT][0])
                 avg_ratio = (ratio_right+ratio_left)/2
-                # ser.write(avg_ratio)
+
                 if avg_ratio <= 0.45:
                     iris_pos = "right"
                 elif avg_ratio > 0.45 and avg_ratio < 0.55:
@@ -145,22 +142,31 @@ with mp_face_mesh.FaceMesh(
                 iris_positions.append((iris_pos, time.time()))
                 iris_ratios.append((avg_ratio, time.time()))
                 if wheel_state == True: 
-                    # ser.write("M")
-                    ser.write(avg_ratio)
-                    print(iris_pos, avg_ratio)
+                    ser.write(f"{avg_ratio}\n".encode())
+                    time.sleep(0.1)
+                    if ser.in_waiting > 0:  # Check if there is data available to read
+                        data = ser.readline().decode('utf-8').strip()  # Decode and strip newline
+                        print(f"Received: {data}")  
+                    # time.sleep(0.1)
+                    # print(iris_pos, avg_ratio)
                     cv.putText(frame, "moving", (30, 60),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
                     cv.putText(frame,f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30,30), cv.FONT_HERSHEY_PLAIN, 1.2, (0,255,0), 1, cv.LINE_AA)
                 else:
-                    ser.write("S")
+                    ser.write(f"5.0\n".encode())
+                    time.sleep(0.1)
+                    if ser.in_waiting > 0:  # Check if there is data available to read
+                        data = ser.readline().decode('utf-8').strip()  # Decode and strip newline
+                        print(f"Received: {data}")  
+                    # time.sleep(0.1)
                     cv.putText(frame, "stopping", (30, 60),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
                     cv.putText(frame,f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30,30), cv.FONT_HERSHEY_PLAIN, 1.2, (0,255,0), 1, cv.LINE_AA)
-                # cv.putText(frame,f'iris pos: {iris_position_left}, {ratio_right:.2f}', (30,50), cv.FONT_HERSHEY_PLAIN, 1.2, (0,255,0), 1, cv.LINE_AA)
-                # print(iris_position_left, ratio_left)
+            
         cv.imshow('img', frame)
         key = cv.waitKey(1)
 
         if key == 27: #esc
             break
+
 
     cap.release()
     cv.destroyAllWindows()

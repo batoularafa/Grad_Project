@@ -108,7 +108,7 @@ with mp_face_mesh.FaceMesh(
                     if flag == True:
                         cv.putText(frame, "toggle done", (30, 30),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
 
-                    if iris_positions_blink:
+                    if iris_positions_blink and wheel_state == True:
                         last_iris_position, _ = iris_positions_blink[-1]  # Get the last position from within 1 second
                         last_iris_ratio, _ = iris_ratios_blink[-1] 
                         cv.putText(frame, f'iris pos: {last_iris_position}, {last_iris_ratio:.2f}', (30, 30),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)

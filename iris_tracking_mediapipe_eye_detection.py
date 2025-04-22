@@ -3,6 +3,7 @@ import numpy as np
 import mediapipe as mp
 import math
 import time
+
 # from picamera2 import Picamera2
 # import serial
 
@@ -22,7 +23,8 @@ L_H_RIGHT = [133]
 LEFT_EYE_TOP = 386
 LEFT_EYE_BOTTOM = 374
 
-#start the picamera
+
+# start the picamera
 # picam2 = Picamera2()
 # picam2.preview_configuration.main.size = (800,800)
 # picam2.preview_configuration.main.format = "RGB888"
@@ -32,13 +34,14 @@ LEFT_EYE_BOTTOM = 374
 
 # ser = serial.Serial('COM6', 9600, timeout=1)
 
-#ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+# ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
 
 def euclidean_distance(p1, p2):
     x1, y1 = p1.ravel()
     x2, y2 = p2.ravel()
     distance = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
     return distance
+
 
 def eyes_pos(center, right, left):
     center_to_right_dist = euclidean_distance(center, right)
@@ -53,6 +56,7 @@ def eyes_pos(center, right, left):
         iris_pos = "left"
 
     return iris_pos, avg_ratio
+
 
 def both_eye_blink(face_landmarks, frame, blink_threshold=0.02):
     # Get the landmarks for both eyes
@@ -75,6 +79,7 @@ def both_eye_blink(face_landmarks, frame, blink_threshold=0.02):
         print("Blink Detected")
         return True
     return False
+
 
 def one_eye_blink(face_landmarks, frame, blink_threshold=0.02):
     # Get the landmarks for both eyes
@@ -143,22 +148,26 @@ with mp_face_mesh.FaceMesh(
                     while blink_time - open_eyes_time > 1 and flag == False:
                         flag = True
                         wheel_state = not wheel_state
+                        if wheel_state:
+                            speed = 1  # Reset speed to s1 when starting movement
                         break
                     if flag == True:
-                        cv.putText(frame, "toggle done", (30, 30), cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1,  cv.LINE_AA)
+                        cv.putText(frame, "toggle done", (30, 30), cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1,
+                                   cv.LINE_AA)
                         print("toggle done")
 
                     if iris_positions_blink and wheel_state == True:
                         last_iris_position, _ = iris_positions_blink[-1]
                         last_iris_ratio, _ = iris_ratios_blink[-1]
                         cv.putText(frame, f'Speed: {speed}', (30, 120), cv.FONT_HERSHEY_PLAIN, 1.2, (255, 0, 255), 1)
-                        cv.putText(frame, f'iris pos: {last_iris_position}, {last_iris_ratio:.2f}', (30, 30),cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
-                        print(f'Speed: {speed}',f'iris pos: {last_iris_position}, {last_iris_ratio:.2f}')
+                        cv.putText(frame, f'iris pos: {last_iris_position}, {last_iris_ratio:.2f}', (30, 30),
+                                   cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
+                        print(f'Speed: {speed}', f'iris pos: {last_iris_position}, {last_iris_ratio:.2f}')
                         # ser.write(f"{last_iris_ratio}\n".encode())
-                        #if speed == 1:
-                            #ser.write(f"s1@{last_iris_ratio}\n".encode())
-                        #else:
-                            #ser.write(f"s2@{last_iris_ratio}\n".encode())
+                        # if speed == 1:
+                        # ser.write(f"s1@{last_iris_ratio}\n".encode())
+                        # else:
+                        # ser.write(f"s2@{last_iris_ratio}\n".encode())
                         # time.sleep(0.1)
                         # if ser.in_waiting > 0:  # Check if there is data available to read
                         #     data = ser.readline().decode('utf-8').strip()  # Decode and strip newline
@@ -172,8 +181,9 @@ with mp_face_mesh.FaceMesh(
                 (r_cx, r_cy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_IRIS])
                 center_left = np.array([l_cx, l_cy], dtype=np.int32)
                 center_right = np.array([r_cx, r_cy], dtype=np.int32)
-                iris_position_right, ratio_right = eyes_pos(center_right, mesh_points[R_H_RIGHT],mesh_points[R_H_LEFT][0])
-                iris_position_left, ratio_left = eyes_pos(center_left, mesh_points[L_H_RIGHT],mesh_points[L_H_LEFT][0])
+                iris_position_right, ratio_right = eyes_pos(center_right, mesh_points[R_H_RIGHT],
+                                                            mesh_points[R_H_LEFT][0])
+                iris_position_left, ratio_left = eyes_pos(center_left, mesh_points[L_H_RIGHT], mesh_points[L_H_LEFT][0])
                 avg_ratio = (ratio_right + ratio_left) / 2
 
                 if avg_ratio <= 0.45:
@@ -187,32 +197,32 @@ with mp_face_mesh.FaceMesh(
                 iris_positions.append((iris_pos, time.time()))
                 iris_ratios.append((avg_ratio, time.time()))
 
-                
                 if wheel_state == True:
-                    #if speed == 1:
-                        #ser.write(f"s1@{avg_ratio}\n".encode())
-                    #else:
-                        #ser.write(f"s2@{avg_ratio}\n".encode())
+                    # if speed == 1:
+                    # ser.write(f"s1@{avg_ratio}\n".encode())
+                    # else:
+                    # ser.write(f"s2@{avg_ratio}\n".encode())
                     # time.sleep(0.1)
                     # if ser.in_waiting > 0:  # Check if there is data available to read
                     #     data = ser.readline().decode('utf-8').strip()  # Decode and strip newline
-                    #     print(f"Received: {data}")  
+                    #     print(f"Received: {data}")
                     # time.sleep(0.1)
-                   
+
                     cv.putText(frame, "moving", (30, 60), cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
                     cv.putText(frame, f'Speed: {speed}', (30, 120), cv.FONT_HERSHEY_PLAIN, 1.2, (255, 0, 255), 1)
-                    cv.putText(frame, f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30, 30), cv.FONT_HERSHEY_PLAIN, 1.2,(0, 255, 0), 1, cv.LINE_AA)
-                    print("moving",f'Speed: {speed}', f'iris pos: {iris_pos}, {avg_ratio:.2f}')
+                    cv.putText(frame, f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30, 30), cv.FONT_HERSHEY_PLAIN, 1.2,
+                               (0, 255, 0), 1, cv.LINE_AA)
+                    print("moving", f'Speed: {speed}', f'iris pos: {iris_pos}, {avg_ratio:.2f}')
 
                     # Check for single-eye blink detection
                     if one_eye_blink(results.multi_face_landmarks[0], frame):
                         if one_eye_closed_time == 0:
                             one_eye_closed_time = current_time
                         elif current_time - one_eye_closed_time > 1 and not one_eye_blink_flag:
-                            # Toggle speed if one eye blinked for 1 second and wheelchair is moving 
+                            # Toggle speed if one eye blinked for 1 second and wheelchair is moving
                             speed = 2 if speed == 1 else 1
                             one_eye_blink_flag = True
-                            cv.putText(frame, "Speed Toggle", (30, 90), cv.FONT_HERSHEY_PLAIN, 1.2,(0, 255, 255), 1)
+                            cv.putText(frame, "Speed Toggle", (30, 90), cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 255), 1)
                             print("Speed Toggle")
                     else:
                         one_eye_closed_time = 0
@@ -224,14 +234,15 @@ with mp_face_mesh.FaceMesh(
                     # time.sleep(0.1)
                     # if ser.in_waiting > 0:  # Check if there is data available to read
                     #     data = ser.readline().decode('utf-8').strip()  # Decode and strip newline
-                        # print(f"Received: {data}")  
+                    # print(f"Received: {data}")
                     # time.sleep(0.1)
                     cv.putText(frame, "stopping", (30, 60), cv.FONT_HERSHEY_PLAIN, 1.2, (0, 255, 0), 1, cv.LINE_AA)
-                    cv.putText(frame, f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30, 30), cv.FONT_HERSHEY_PLAIN, 1.2,(0, 255, 0), 1, cv.LINE_AA)   
+                    cv.putText(frame, f'iris pos: {iris_pos}, {avg_ratio:.2f}', (30, 30), cv.FONT_HERSHEY_PLAIN, 1.2,
+                               (0, 255, 0), 1, cv.LINE_AA)
                     print("stopping", f'iris pos: {iris_pos}, {avg_ratio:.2f}')
                 if not one_eye_blink(results.multi_face_landmarks[0], frame):
                     one_eye_blink_flag = False
-           
+
         cv.imshow('img', frame)
         key = cv.waitKey(1)
         if key == 27:  # esc

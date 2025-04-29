@@ -1,16 +1,16 @@
 // Motor A (Left Motor)
-#define RPWM_A 9
-#define LPWM_A 8
-#define R_EN_A 2
-#define L_EN_A 3
+#define RPWM_A 3
+#define LPWM_A 9
+#define R_EN_A 7
+#define L_EN_A 8
 // Motor B (Right Motor)
 #define RPWM_B 10
 #define LPWM_B 11
-#define R_EN_B 4
-#define L_EN_B 5
+#define R_EN_B 2
+#define L_EN_B 4
 // Relay control pins (active LOW)
-#define RELAY_A 6
-#define RELAY_B 7
+#define RELAY_A 5
+#define RELAY_B 6
 void setup() {
   // Set motor control pins as output
   pinMode(RPWM_A, OUTPUT);
@@ -150,3 +150,4 @@ void loop() {
   }
   delay(100);
 }
+

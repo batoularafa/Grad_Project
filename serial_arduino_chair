@@ -1,67 +1,133 @@
-// Motor A (Left Motor)
+//motor A left motor 
 #define RPWM_A 3
 #define LPWM_A 9
 #define R_EN_A 7
 #define L_EN_A 8
-// Motor B (Right Motor)
+//motor B right motor 
 #define RPWM_B 10
 #define LPWM_B 11
 #define R_EN_B 2
 #define L_EN_B 4
-// Relay control pins (active LOW)
-#define RELAY_A 5
-#define RELAY_B 6
+//Ultrasound and buzzer 
+#define TRIG_PIN A0
+#define ECHO_PIN A1
+#define BUZZER_PIN A2
+#define TRIG_PIN2 A3
+#define ECHO_PIN2 A4
+
+//set speed
+int currentSpeed = 0;
+//ultrasound function 
+long getDistance(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long duration = pulseIn(echoPin, HIGH, 30000);
+  if (duration == 0) {
+    return 9999;
+  }
+  long distance = duration * 0.034 / 2;
+  return distance;
+}
+//speed inc/dec frpm 50 to 125 or vice versa function
+void rampSpeed(int targetSpeed, int direction) {
+  int step = (targetSpeed > currentSpeed) ? 1 : -1;
+  for (int speed = currentSpeed; speed != targetSpeed; speed += step) {
+    applySpeed(speed, direction);
+    delay(10);
+  }
+  currentSpeed = targetSpeed;
+}
+//helper function 
+void applySpeed(int speed, int direction) {
+  switch (direction) {
+    case 1:
+      analogWrite(RPWM_A, speed);
+      analogWrite(LPWM_A, 0);
+      analogWrite(RPWM_B, speed);
+      analogWrite(LPWM_B, 0);
+      break;
+    case 2:
+      analogWrite(RPWM_A, 0);
+      analogWrite(LPWM_A, speed);
+      analogWrite(RPWM_B, speed);
+      analogWrite(LPWM_B, 0);
+      break;
+    case 3:
+      analogWrite(RPWM_A, speed);
+      analogWrite(LPWM_A, 0);
+      analogWrite(RPWM_B, 0);
+      analogWrite(LPWM_B, speed);
+      break;
+    case 0:
+    default:
+      analogWrite(RPWM_A, 0);
+      analogWrite(LPWM_A, 0);
+      analogWrite(RPWM_B, 0);
+      analogWrite(LPWM_B, 0);
+      break;
+  }
+}
+//gradual decrease of speed from 125 to zero 
+void gradualStop() {
+  Serial.println("Gradually slowing down...");
+  for (int s = currentSpeed; s >= 0; s -= 25) {
+    analogWrite(RPWM_A, s);
+    analogWrite(LPWM_A, 0);
+    analogWrite(RPWM_B, s);
+    analogWrite(LPWM_B, 0);
+    delay(300);
+  }
+  analogWrite(RPWM_A, 0);
+  analogWrite(LPWM_A, 0);
+  analogWrite(RPWM_B, 0);
+  analogWrite(LPWM_B, 0);
+  currentSpeed = 0;
+  Serial.println("Motors stopped.");
+}
+
 void setup() {
-  // Set motor control pins as output
   pinMode(RPWM_A, OUTPUT);
   pinMode(LPWM_A, OUTPUT);
   pinMode(R_EN_A, OUTPUT);
   pinMode(L_EN_A, OUTPUT);
-
   pinMode(RPWM_B, OUTPUT);
   pinMode(LPWM_B, OUTPUT);
   pinMode(R_EN_B, OUTPUT);
   pinMode(L_EN_B, OUTPUT);
-
-  // Set relay pins as output
-  pinMode(RELAY_A, OUTPUT);
-  pinMode(RELAY_B, OUTPUT);
-
-  // Enable BTS7960 driver channels
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(TRIG_PIN2, OUTPUT);
+  pinMode(ECHO_PIN2, INPUT);
   digitalWrite(R_EN_A, HIGH);
   digitalWrite(L_EN_A, HIGH);
   digitalWrite(R_EN_B, HIGH);
   digitalWrite(L_EN_B, HIGH);
-
-  // Start with relays OFF (motors disconnected)
-  digitalWrite(RELAY_A, HIGH);
-  digitalWrite(RELAY_B, HIGH);
-
   Serial.begin(9600);
   Serial.println("Setup complete");
 }
-void loop() {
-  String command = "";  // Declare command string outside the if-block
 
+void loop() {
+  String command = "";
   if (Serial.available() > 0) {
     command = Serial.readStringUntil('\n');
-    delay(50);  // Optional, to ensure full string is received
+    delay(50);
   } else {
-    return;  // No data, skip rest of loop
+    return;
   }
-    // Debug: Print received value to Serial Monitor
   Serial.print("Received: ");
   Serial.println(command);
+
   if (command == "5" || command == "5.0") {
-    analogWrite(RPWM_A, 0);
-    analogWrite(LPWM_A, 0);
-    analogWrite(RPWM_B, 0);
-    analogWrite(LPWM_B, 0);
-    digitalWrite(RELAY_A, HIGH);
-    digitalWrite(RELAY_B, HIGH);
+    gradualStop();
+    digitalWrite(BUZZER_PIN, LOW);
     Serial.println("Stopping motors...");
     return;
   }
+
   int sepIndex = command.indexOf('@');
   if (sepIndex == -1) {
     Serial.println("Invalid command format");
@@ -71,83 +137,93 @@ void loop() {
   String ratioStr = command.substring(sepIndex + 1);
   float ratio = ratioStr.toFloat();
   int speed = 0;
-  // Control logic based on received value
-  if (ratio >= 0.0 && ratio <= 0.45 && speedStr == "s1") {
-    //moving to the right with s1 
-    speed = 50; // low speed 
-    Serial.println("Moving right with s1");
-    digitalWrite(RELAY_A, LOW); // disable relay
-    digitalWrite(RELAY_B, LOW); // disable relay 
-    analogWrite(RPWM_A, speed); //  left motor foward 
-    analogWrite(LPWM_A, 0);
-    analogWrite(RPWM_B, 0);
-    analogWrite(LPWM_B, speed); // right motor reversed 
+  speed = constrain(speed, 0, 255);
+  long largeThreshold = 30;
+  long smallThreshold = 10;
+  long dist1 = getDistance(TRIG_PIN, ECHO_PIN);
+  long dist2 = getDistance(TRIG_PIN2, ECHO_PIN2);
+
+  if ((ratio >= 0.0 && ratio <= 0.45) && (speedStr == "s1" || speedStr == "s2")) {
+    //moving to right with s1 
+    if (dist1 < smallThreshold || dist2 < smallThreshold) {
+      gradualStop();
+      digitalWrite(BUZZER_PIN, HIGH);
+      Serial.println("Obstacle detected (too close), stopping motors...");
+    } else if (dist1 < largeThreshold || dist2 < largeThreshold) {
+      digitalWrite(BUZZER_PIN, HIGH);
+      Serial.println("Obstacle detected (too close), warning...");
+      speed = 50;
+      currentSpeed= speed;
+      analogWrite(RPWM_A, speed);
+      analogWrite(LPWM_A, 0);
+      analogWrite(RPWM_B, 0);
+      analogWrite(LPWM_B, speed);
+    } else {
+      speed = 50;
+      currentSpeed= speed;
+      analogWrite(RPWM_A, speed);
+      analogWrite(LPWM_A, 0);
+      analogWrite(RPWM_B, 0);
+      analogWrite(LPWM_B, speed);
+      digitalWrite(BUZZER_PIN, LOW);
+    }
   }
-  else if (ratio >= 0.0 && ratio <= 0.45 && speedStr == "s2") {
-    // moving to the right with s2 
-    speed = 175; //high speed 
-    Serial.println("Moving right with s2");
-    digitalWrite(RELAY_A, LOW); // disable relay
-    digitalWrite(RELAY_B, LOW); // disable relay 
-    analogWrite(RPWM_A, speed); // left motor forward 
-    analogWrite(LPWM_A, 0); 
-    analogWrite(RPWM_B, 0);
-    analogWrite(LPWM_B, speed); // right motor reversed 
-  }
-  else if (ratio > 0.45 && ratio < 0.55 && speedStr == "s1") {
-    // moving forward with s1 
-    speed = 50; //low speed 
-    Serial.println("Moving forward with s1");
-    digitalWrite(RELAY_A, LOW); // disable relay 
-    digitalWrite(RELAY_B, LOW); // disable relay 
-    analogWrite(RPWM_A, speed); //left motor forward 
-    analogWrite(LPWM_A, 0);
-    analogWrite(RPWM_B, speed); // left motor forward 
-    analogWrite(LPWM_B, 0);
+  else if (ratio > 0.45 && ratio < 0.55 && speedStr == "s1"){
+    //moving forward with s1 
+    if (dist1 < smallThreshold || dist2 < smallThreshold) {
+      gradualStop();
+      digitalWrite(BUZZER_PIN, HIGH);
+      Serial.println("Obstacle detected (too close), stopping motors...");
+    } else if (dist1 < largeThreshold || dist2 < largeThreshold) {
+      digitalWrite(BUZZER_PIN, HIGH);
+      Serial.println("Obstacle detected (too close), warning...");
+      rampSpeed(50, 1);
+    } else {
+      rampSpeed(50, 1);
+      digitalWrite(BUZZER_PIN, LOW);
+    }
   }
   else if (ratio > 0.45 && ratio < 0.55 && speedStr == "s2") {
-    // moving forward with s2 
-    speed = 175; //low speed 
-    Serial.println("Moving forward with s1");
-    digitalWrite(RELAY_A, LOW); // disable relay 
-    digitalWrite(RELAY_B, LOW); // disable relay 
-    analogWrite(RPWM_A, speed); //left motor forward 
-    analogWrite(LPWM_A, 0);
-    analogWrite(RPWM_B, speed); // right motor forward 
-    analogWrite(LPWM_B, 0);
+    //moving forward with s2
+    if (dist1 < smallThreshold || dist2 < smallThreshold) {
+      gradualStop();
+      digitalWrite(BUZZER_PIN, HIGH);
+      Serial.println("Obstacle detected (too close), stopping motors...");
+    } else if (dist1 < largeThreshold || dist2 < largeThreshold) {
+      digitalWrite(BUZZER_PIN, HIGH);
+      Serial.println("Obstacle detected (too close), warning...");
+      rampSpeed(125, 1);
+    } else {
+      rampSpeed(125, 1);
+      digitalWrite(BUZZER_PIN, LOW);
+    }
   }
-  else if (ratio >= 0.55 && ratio <= 1.0 && speedStr == "s1") {
-    // moving to the left with s1
-    speed =50 ; // low speed  
-    Serial.println("Moving left with s1");
-    digitalWrite(RELAY_A, LOW); // disable relay 
-    digitalWrite(RELAY_B, LOW); // disable relay 
-    analogWrite(RPWM_A, 0);
-    analogWrite(LPWM_A, speed); // left motor reversed 
-    analogWrite(RPWM_B, speed); // right motor forward 
-    analogWrite(LPWM_B, 0);
-  }
-  else if (ratio >= 0.55 && ratio <= 1.0 && speedStr == "s2") {
-    // moving to the left with s2 
-    speed = 175; // high speed 
-    Serial.println("Moving left with s2");
-    digitalWrite(RELAY_A, LOW); // disable relay 
-    digitalWrite(RELAY_B, LOW); // disable relay 
-    analogWrite(RPWM_A, 0);
-    analogWrite(LPWM_A, speed); // left motor reversed 
-    analogWrite(RPWM_B, speed); // right motor forward 
-    analogWrite(LPWM_B, 0);
+  else if ((ratio >= 0.55 && ratio <= 1.0) && (speedStr == "s1" || speedStr == "s2")) {
+    //moving to left with s2 
+    if (dist1 < smallThreshold || dist2 < smallThreshold) {
+      gradualStop();
+      digitalWrite(BUZZER_PIN, HIGH);
+      Serial.println("Obstacle detected (too close), stopping motors...");
+    } else if (dist1 < largeThreshold || dist2 < largeThreshold) {
+      digitalWrite(BUZZER_PIN, HIGH);
+      Serial.println("Obstacle detected (too close), warning...");
+      speed = 50;
+      currentSpeed= speed;
+      analogWrite(RPWM_A, 0);
+      analogWrite(LPWM_A, speed);
+      analogWrite(RPWM_B, speed);
+      analogWrite(LPWM_B, 0);
+    } else {
+      speed = 50;
+      currentSpeed= speed;
+      analogWrite(RPWM_A, 0);
+      analogWrite(LPWM_A, speed);
+      analogWrite(RPWM_B, speed);
+      analogWrite(LPWM_B, 0);
+    }
   }
   else {
-    speed =0 ;
-    analogWrite(RPWM_A, 0);
-    analogWrite(LPWM_A, 0);
-    analogWrite(RPWM_B, 0);
-    analogWrite(LPWM_B, 0);
-    digitalWrite(RELAY_A, HIGH); // enable relay 
-    digitalWrite(RELAY_B, HIGH); // enable relay 
-    Serial.println("Stopping motors...");
+    gradualStop();
+    digitalWrite(BUZZER_PIN, LOW);
   }
-  delay(100);
 }
-

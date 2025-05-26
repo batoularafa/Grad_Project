@@ -14,216 +14,320 @@
 #define BUZZER_PIN A2
 #define TRIG_PIN2 A3
 #define ECHO_PIN2 A4
-
-//set speed
-int currentSpeed = 0;
-//ultrasound function 
+int currentSpeedLeft = 0;
+int currentSpeedRight = 0;
+// ultrasound function 
 long getDistance(int trigPin, int echoPin) {
   digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
+  delayMicroseconds(2);            // Clear the trigger
   digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
+  delayMicroseconds(10);           // Send 10µs pulse
   digitalWrite(trigPin, LOW);
-  long duration = pulseIn(echoPin, HIGH, 30000);
+  long duration = pulseIn(echoPin, HIGH, 30000);  // Timeout after 30 ms
   if (duration == 0) {
-    return 9999;
+    return 9999;  // If no echo, assume no object detected (very far)
   }
-  long distance = duration * 0.034 / 2;
+  long distance = duration * 0.034 / 2;   // Convert time to distance (cm)
   return distance;
 }
-//speed inc/dec frpm 50 to 125 or vice versa function
-void rampSpeed(int targetSpeed, int direction) {
-  int step = (targetSpeed > currentSpeed) ? 1 : -1;
-  for (int speed = currentSpeed; speed != targetSpeed; speed += step) {
-    applySpeed(speed, direction);
-    delay(10);
-  }
-  currentSpeed = targetSpeed;
-}
-//helper function 
-void applySpeed(int speed, int direction) {
-  switch (direction) {
-    case 1:
-      analogWrite(RPWM_A, speed);
-      analogWrite(LPWM_A, 0);
-      analogWrite(RPWM_B, speed);
-      analogWrite(LPWM_B, 0);
-      break;
-    case 2:
-      analogWrite(RPWM_A, 0);
-      analogWrite(LPWM_A, speed);
-      analogWrite(RPWM_B, speed);
-      analogWrite(LPWM_B, 0);
-      break;
-    case 3:
-      analogWrite(RPWM_A, speed);
-      analogWrite(LPWM_A, 0);
-      analogWrite(RPWM_B, 0);
-      analogWrite(LPWM_B, speed);
-      break;
-    case 0:
-    default:
-      analogWrite(RPWM_A, 0);
-      analogWrite(LPWM_A, 0);
-      analogWrite(RPWM_B, 0);
-      analogWrite(LPWM_B, 0);
-      break;
-  }
-}
-//gradual decrease of speed from 125 to zero 
-void gradualStop() {
-  Serial.println("Gradually slowing down...");
-  for (int s = currentSpeed; s >= 0; s -= 25) {
-    analogWrite(RPWM_A, s);
-    analogWrite(LPWM_A, 0);
-    analogWrite(RPWM_B, s);
-    analogWrite(LPWM_B, 0);
-    delay(300);
-  }
-  analogWrite(RPWM_A, 0);
-  analogWrite(LPWM_A, 0);
-  analogWrite(RPWM_B, 0);
-  analogWrite(LPWM_B, 0);
-  currentSpeed = 0;
-  Serial.println("Motors stopped.");
-}
+//gradual increase of speed 
+void gradualIncrease(int targetLeft, int targetRight) {
+    while (currentSpeedLeft < targetLeft || currentSpeedRight < targetRight) {
+        if (currentSpeedLeft < targetLeft) currentSpeedLeft++;
+        if (currentSpeedRight < targetRight) currentSpeedRight++;
 
+        analogWrite(RPWM_A, currentSpeedLeft);
+        analogWrite(LPWM_A, 0);
+        analogWrite(RPWM_B, currentSpeedRight);
+        analogWrite(LPWM_B, 0);
+        delay(20);
+    }
+}
+//gradual decrease of speed 
+void gradualDecrease(int targetLeft, int targetRight) {
+    while (currentSpeedLeft > targetLeft || currentSpeedRight > targetRight) {
+        if (currentSpeedLeft > targetLeft) currentSpeedLeft--;
+        if (currentSpeedRight > targetRight) currentSpeedRight--;
+
+        analogWrite(RPWM_A, currentSpeedLeft);
+        analogWrite(LPWM_A, 0);
+        analogWrite(RPWM_B, currentSpeedRight);
+        analogWrite(LPWM_B, 0);
+        delay(20);
+    }
+}
+void gradualStop() {
+    while (currentSpeedLeft > 0 || currentSpeedRight > 0) {
+        if (currentSpeedLeft > 0) currentSpeedLeft--;
+        if (currentSpeedRight > 0) currentSpeedRight--;
+        analogWrite(RPWM_A, currentSpeedLeft);
+        analogWrite(LPWM_A, 0);
+        analogWrite(RPWM_B, currentSpeedRight);
+        analogWrite(LPWM_B, 0);
+        delay(20);
+    }
+    analogWrite(RPWM_A, 0);
+    analogWrite(LPWM_A, 0);
+    analogWrite(RPWM_B, 0);
+    analogWrite(LPWM_B, 0);
+}
+//set the pins 
 void setup() {
+  // Set motor control pins as output of motor A
   pinMode(RPWM_A, OUTPUT);
   pinMode(LPWM_A, OUTPUT);
   pinMode(R_EN_A, OUTPUT);
   pinMode(L_EN_A, OUTPUT);
+  // Set motor control pins as output of motor A
   pinMode(RPWM_B, OUTPUT);
   pinMode(LPWM_B, OUTPUT);
   pinMode(R_EN_B, OUTPUT);
   pinMode(L_EN_B, OUTPUT);
+  //Ultrasound and BUZZER pins
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(TRIG_PIN2, OUTPUT);
   pinMode(ECHO_PIN2, INPUT);
+  // Enable BTS7960 driver channels
   digitalWrite(R_EN_A, HIGH);
   digitalWrite(L_EN_A, HIGH);
   digitalWrite(R_EN_B, HIGH);
   digitalWrite(L_EN_B, HIGH);
+  //initialize serial 
   Serial.begin(9600);
-  Serial.println("Setup complete");
 }
-
 void loop() {
-  String command = "";
+  String command = "";  // Declare command string outside the if-block
   if (Serial.available() > 0) {
     command = Serial.readStringUntil('\n');
-    delay(50);
+    delay(50);  // Optional, to ensure full string is received
   } else {
-    return;
+    return;  // No data, skip rest of loop
   }
-  Serial.print("Received: ");
-  Serial.println(command);
-
   if (command == "5" || command == "5.0") {
     gradualStop();
+    currentSpeedLeft = 0;     // Ensure speed variables are reset
+    currentSpeedRight = 0;
     digitalWrite(BUZZER_PIN, LOW);
-    Serial.println("Stopping motors...");
     return;
   }
-
   int sepIndex = command.indexOf('@');
   if (sepIndex == -1) {
-    Serial.println("Invalid command format");
     return;
   }
   String speedStr = command.substring(0, sepIndex);
   String ratioStr = command.substring(sepIndex + 1);
   float ratio = ratioStr.toFloat();
-  int speed = 0;
-  speed = constrain(speed, 0, 255);
-  long largeThreshold = 30;
-  long smallThreshold = 10;
-  long dist1 = getDistance(TRIG_PIN, ECHO_PIN);
-  long dist2 = getDistance(TRIG_PIN2, ECHO_PIN2);
+  int speedleft = 0;
+  int speedright = 0;
+  // Thresholds
+  long largeThreshold = 120;  // Large threshold for buzzer only (in cm)
+  long smallThreshold = 60 ; // Small threshold for stopping the wheelchair (in cm)
+  // Read distances from both ultrasound sensors
+  long dist1 = getDistance(TRIG_PIN, ECHO_PIN);      // Distance from sensor 1
+  long dist2 = getDistance(TRIG_PIN2, ECHO_PIN2);    // Distance from sensor 2
 
+  
+  //set the direction and speed based on the data recieved 
   if ((ratio >= 0.0 && ratio <= 0.45) && (speedStr == "s1" || speedStr == "s2")) {
-    //moving to right with s1 
+    //move the wheelchair to the right with s1
     if (dist1 < smallThreshold || dist2 < smallThreshold) {
-      gradualStop();
-      digitalWrite(BUZZER_PIN, HIGH);
-      Serial.println("Obstacle detected (too close), stopping motors...");
+      // If obstacle is too close, stop and sound the buzzer
+      digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
+      gradualStop();  // Smooth stop
+      currentSpeedLeft = 0;    //✅ Update current speed
+      currentSpeedRight = 0;  //✅ Update current speed
+      speedleft=0;
+      speedright=0;
+      //digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
     } else if (dist1 < largeThreshold || dist2 < largeThreshold) {
-      digitalWrite(BUZZER_PIN, HIGH);
-      Serial.println("Obstacle detected (too close), warning...");
-      speed = 50;
-      currentSpeed= speed;
-      analogWrite(RPWM_A, speed);
+      // If obstacle is near but not too close, sound the buzzer
+      digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
+      // Continue moving right
+      speedleft = 50;  // Low speed
+      speedright =58;  // low speed 
+      analogWrite(RPWM_A, speedleft); // Left motor forward
       analogWrite(LPWM_A, 0);
       analogWrite(RPWM_B, 0);
-      analogWrite(LPWM_B, speed);
+      analogWrite(LPWM_B, speedright); // Right motor reversed
+      currentSpeedLeft = speedleft;  // ✅ Update current speed
+      currentSpeedRight = speedright;  // ✅ Update current speed
     } else {
-      speed = 50;
-      currentSpeed= speed;
-      analogWrite(RPWM_A, speed);
+      // No obstacle, move right
+      speedleft = 50;  // Low speed
+      speedright = 58; // low speed 
+      analogWrite(RPWM_A, speedleft); // Left motor forward
       analogWrite(LPWM_A, 0);
       analogWrite(RPWM_B, 0);
-      analogWrite(LPWM_B, speed);
-      digitalWrite(BUZZER_PIN, LOW);
+      analogWrite(LPWM_B, speedright); // Right motor reversed
+      currentSpeedLeft = speedleft;  // ✅ Update current speed
+      currentSpeedRight = speedright;  // ✅ Update current speed
+      digitalWrite(BUZZER_PIN, LOW);  // Deactivate buzzer
     }
   }
+
   else if (ratio > 0.45 && ratio < 0.55 && speedStr == "s1"){
-    //moving forward with s1 
+    //move the wheelchair forward with s1 
     if (dist1 < smallThreshold || dist2 < smallThreshold) {
-      gradualStop();
-      digitalWrite(BUZZER_PIN, HIGH);
-      Serial.println("Obstacle detected (too close), stopping motors...");
+      // If obstacle is too close, stop and sound the buzzer
+      digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
+      gradualStop();  // Smooth stop
+      currentSpeedLeft = 0;    //✅ Update current speed
+      currentSpeedRight = 0;  //✅ Update current speed
+      speedleft=0;
+      speedright=0;
+      //digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
     } else if (dist1 < largeThreshold || dist2 < largeThreshold) {
-      digitalWrite(BUZZER_PIN, HIGH);
-      Serial.println("Obstacle detected (too close), warning...");
-      rampSpeed(50, 1);
+      // If obstacle is near but not too close, sound the buzzer
+      digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
+      // Continue moving forward
+      if (currentSpeedLeft < 50 || currentSpeedRight < 60) {
+        gradualIncrease(50, 60);  // Left motor to 55, Right motor to 50
+        currentSpeedLeft = 50;    //✅ Update current speed
+        currentSpeedRight = 60;  //✅ Update current speed
+        speedleft=50;
+        speedright=60;
+      } else if (currentSpeedLeft > 50 || currentSpeedRight > 58){
+        gradualDecrease(50, 60);
+        currentSpeedLeft = 50;    //✅ Update current speed
+        currentSpeedRight = 60;  //✅ Update current speed
+        speedleft=50;
+        speedright=60;
+      } else {
+        // Already at correct speed
+        analogWrite(RPWM_A, currentSpeedLeft); // Left motor forward
+        analogWrite(LPWM_A, 0);
+        analogWrite(RPWM_B, currentSpeedRight ); // Right motor forward
+        analogWrite(LPWM_B, 0); 
+      }
     } else {
-      rampSpeed(50, 1);
-      digitalWrite(BUZZER_PIN, LOW);
+      // No obstacle, move forward
+      if (currentSpeedLeft < 50 || currentSpeedRight < 60) {
+        gradualIncrease(50 , 60);
+        currentSpeedLeft = 50;    //✅ Update current speed
+        currentSpeedRight = 60;  //✅ Update current speed
+        speedleft=50;
+        speedright=58;
+      } else if (currentSpeedLeft > 50 || currentSpeedRight > 60) {
+        gradualDecrease(50,60);
+        currentSpeedLeft = 50;    //✅ Update current speed
+        currentSpeedRight = 60;  //✅ Update current speed
+        speedleft=50;
+        speedright=60;
+      } else {
+        analogWrite(RPWM_A, currentSpeedLeft); // Left motor forward
+        analogWrite(LPWM_A, 0);
+        analogWrite(RPWM_B,  currentSpeedRight); // Right motor forward
+        analogWrite(LPWM_B, 0);
+        currentSpeedLeft= 50;  // ✅ Update current speed
+        currentSpeedRight = 60;  //✅ Update current speed
+        speedleft=50;
+        speedright=60;   
+      }
+      digitalWrite(BUZZER_PIN, LOW);  // Deactivate buzzer
     }
   }
+
   else if (ratio > 0.45 && ratio < 0.55 && speedStr == "s2") {
-    //moving forward with s2
+    //move wheelchair forward with s2
     if (dist1 < smallThreshold || dist2 < smallThreshold) {
-      gradualStop();
-      digitalWrite(BUZZER_PIN, HIGH);
-      Serial.println("Obstacle detected (too close), stopping motors...");
+      // If obstacle is too close, stop and sound the buzzer
+      digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
+      gradualStop(); 
+      currentSpeedLeft = 0;    //✅ Update current speed
+      currentSpeedRight = 0;  //✅ Update current speed
+      speedleft=0;
+      speedright=0;
+      //digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
     } else if (dist1 < largeThreshold || dist2 < largeThreshold) {
-      digitalWrite(BUZZER_PIN, HIGH);
-      Serial.println("Obstacle detected (too close), warning...");
-      rampSpeed(125, 1);
+      // If obstacle is near but not too close, sound the buzzer
+      digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
+      // Continue moving forward
+      if (currentSpeedLeft < 125 || currentSpeedRight < 133) {
+        gradualIncrease(125,133);
+        currentSpeedLeft = 125;    //✅ Update current speed
+        currentSpeedRight = 133;  //✅ Update current speed
+        speedleft=125;
+        speedright=133;
+      } else {
+        // Continue moving with current speed (125)
+        analogWrite(RPWM_A, currentSpeedLeft); // Left motor forward
+        analogWrite(LPWM_A, 0);
+        analogWrite(RPWM_B, currentSpeedRight); // Right motor forward
+        analogWrite(LPWM_B, 0);
+        currentSpeedLeft = 125;    //✅ Update current speed
+        currentSpeedRight = 133;  //✅ Update current speed
+        speedleft=125;
+        speedright=133;
+      }
     } else {
-      rampSpeed(125, 1);
-      digitalWrite(BUZZER_PIN, LOW);
+      // No obstacle, move forward
+      if (currentSpeedLeft < 125 || currentSpeedRight < 133) {
+        // Gradually increase speed to 125
+        gradualIncrease(125,133);
+        currentSpeedLeft = 125;    //✅ Update current speed
+        currentSpeedRight = 133;  //✅ Update current speed
+        speedleft=125;
+        speedright=133;
+        digitalWrite(BUZZER_PIN, LOW);  // Deactivate buzzer
+      } else {
+        // Continue moving at 125 speed
+        analogWrite(RPWM_A, currentSpeedLeft); // Left motor forward
+        analogWrite(LPWM_A, 0);
+        analogWrite(RPWM_B, currentSpeedRight); // Right motor forward
+        analogWrite(LPWM_B, 0);
+        currentSpeedLeft = 125;    //✅ Update current speed
+        currentSpeedRight = 133;  //✅ Update current speed
+        speedleft=125;
+        speedright=133;
+      }
+      digitalWrite(BUZZER_PIN, LOW);  // Deactivate buzzer
     }
   }
   else if ((ratio >= 0.55 && ratio <= 1.0) && (speedStr == "s1" || speedStr == "s2")) {
-    //moving to left with s2 
+    //move wheelchair to the left with s1 
     if (dist1 < smallThreshold || dist2 < smallThreshold) {
-      gradualStop();
-      digitalWrite(BUZZER_PIN, HIGH);
-      Serial.println("Obstacle detected (too close), stopping motors...");
+      // If obstacle is too close, stop and sound the buzzer
+      digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
+      gradualStop();  // Smooth stop
+      currentSpeedLeft = 0;    //✅ Update current speed
+      currentSpeedRight = 0;  //✅ Update current speed
+      speedleft=0;
+      speedright=0;
+      //digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
     } else if (dist1 < largeThreshold || dist2 < largeThreshold) {
-      digitalWrite(BUZZER_PIN, HIGH);
-      Serial.println("Obstacle detected (too close), warning...");
-      speed = 50;
-      currentSpeed= speed;
+      // If obstacle is near but not too close, sound the buzzer
+      digitalWrite(BUZZER_PIN, HIGH);  // Activate buzzer
+      // Continue moving left
+      speedleft = 50;  // Low speed
+      speedright =58; // low speed 
       analogWrite(RPWM_A, 0);
-      analogWrite(LPWM_A, speed);
-      analogWrite(RPWM_B, speed);
+      analogWrite(LPWM_A, speedleft); // Left motor reversed
+      analogWrite(RPWM_B, speedright); // Right motor forward
       analogWrite(LPWM_B, 0);
+      currentSpeedLeft = 50;  // ✅ Update current speed
+      currentSpeedRight =58 ;  // ✅ Update current speed
     } else {
-      speed = 50;
-      currentSpeed= speed;
+      // No obstacle, move left
+      speedleft = 60;  // Low speed
+      speedright= 68 ; // low speed 
       analogWrite(RPWM_A, 0);
-      analogWrite(LPWM_A, speed);
-      analogWrite(RPWM_B, speed);
+      analogWrite(LPWM_A, speedleft); // Left motor reversed
+      analogWrite(RPWM_B, speedright); // Right motor forward
       analogWrite(LPWM_B, 0);
+      currentSpeedLeft = 60;  // ✅ Update current speed
+      currentSpeedRight = 68 ;  // ✅ Update current speed
+      digitalWrite(BUZZER_PIN, LOW);  // Deactivate buzzer
     }
   }
   else {
-    gradualStop();
-    digitalWrite(BUZZER_PIN, LOW);
+    //stop the motors 
+    gradualStop();  // Smooth stop
+      currentSpeedLeft = 0;    //✅ Update current speed
+      currentSpeedRight = 0;  //✅ Update current speed
+      speedleft=0;
+      speedright=0;
+    digitalWrite(BUZZER_PIN, LOW);  // Deactivate buzzer
   }
 }

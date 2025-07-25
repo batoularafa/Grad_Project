@@ -19,17 +19,17 @@ This project provides a smart, hands-free wheelchair system designed for **quadr
 1. **User's Eye Movement**
   
 2. **Raspberry Pi + PiCamera**
-   - Captures video feed  
+   Captures video feed  
   
 3. **MediaPipe (Iris + Blink Detection)**
-   - Detects iris position and blinks  
+   Detects iris position and blinks  
   
 4. **Serial Communication (USB)**
-   - Sends movement command to Arduino  
+   Sends movement command to Arduino  
   
 5. **Arduino**
-   - Interprets and executes movement  
+   Interprets and executes movement  
   
 6. **Motor Driver + Ultrasonic Sensors**
-   - Controls wheelchair motion and ensures safety
+   Controls wheelchair motion and ensures safety
 

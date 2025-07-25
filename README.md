@@ -2,7 +2,7 @@
 
 **Biomedical Engineering Graduation Project — Alexandria University**
 
-This project provides a smart, hands-free wheelchair system designed for **quadriplegic patients** — individuals who have lost motor control in both upper and lower limbs. Using **eye movement and blink detection**, the system enables the user to control wheelchair motion without physical input.
+This project provides a smart, hands-free wheelchair system designed for **quadriplegic patients** individuals who have lost motor control in both upper and lower limbs. Using **eye movement and blink detection**, the system enables the user to control wheelchair motion without physical input.
 
 ---
 

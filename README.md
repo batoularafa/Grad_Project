@@ -16,8 +16,6 @@ This project provides a smart, hands-free wheelchair system designed for **quadr
 
 ## System Architecture
 
-## 🧠 System Architecture
-
 1. **User's Eye Movement**
   
 2. **Raspberry Pi + PiCamera**
